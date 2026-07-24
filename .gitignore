@@ -27,3 +27,6 @@ data/
 # Logs / OS
 *.log
 .DS_Store
+
+.tmp_tables.json
+.csv_temp.db
