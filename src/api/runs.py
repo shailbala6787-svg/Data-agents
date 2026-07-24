@@ -47,8 +47,12 @@ async def ask(req: AskRequest, session: Session = Depends(get_session)):
             "error": None,
         }
         out = agentic_ai.invoke(state)
+        error = out.get("error")
         answer = (out.get("output") or out.get("answer") or "").strip()
-        if not answer:
+        
+        if error:
+            answer = f"Error: {error}"
+        elif not answer:
             answer = "No answer was produced."
 
         provider = get_settings().resolve_provider()
@@ -57,22 +61,23 @@ async def ask(req: AskRequest, session: Session = Depends(get_session)):
         run = RunRow(
             input_text=req.question,
             instruction=req.role,
-            status="completed",
+            status="failed" if error else "completed",
             provider=provider,
             model=model,
             output_text=answer,
+            error_message=str(error) if error else None,
         )
         session.add(run)
         session.commit()
 
         return {
             "run_id": str(run.id),
-            "status": "completed",
+            "status": "failed" if error else "completed",
             "output": answer,
             "source_summary": out.get("source_summary"),
             "chart": out.get("chart"),
             "table_data": out.get("table_data"),
-            "error": None,
+            "error": str(error) if error else None,
         }
     except Exception as exc:
         provider = get_settings().resolve_provider()
