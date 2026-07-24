@@ -191,24 +191,32 @@ class ConnectionManager:
                 f"CSV exceeds {self._csv_max_bytes // (1024 * 1024)} MB limit."
             )
 
-        from src.ingest.csv_ingest import detect_separator, infer_schema, load_csv_to_sqlite
+        from src.ingest.csv_ingest import detect_separator, infer_schema
 
         sep = detect_separator(csv_bytes)
 
         try:
-            df = pd.read_csv(
-                pd.io.common.BytesIO(csv_bytes), sep=sep, on_bad_lines="skip", engine="python"
+            chunks = pd.read_csv(
+                pd.io.common.BytesIO(csv_bytes), sep=sep, on_bad_lines="skip", chunksize=25000
             )
         except Exception as exc:
             raise ValueError(f"CSV parse error: {exc}") from exc
 
-        if df.empty:
-            raise ValueError("CSV contains no parseable rows.")
-
         table_name = f"rnd_{abs(hash(filename)):012x}"
-        cols = infer_schema(df)
-        n_rows = len(df)
-        load_csv_to_sqlite(self._csv_engine, table_name, df)
+        cols = []
+        n_rows = 0
+        is_first = True
+
+        for df in chunks:
+            if is_first:
+                cols = infer_schema(df)
+            
+            n_rows += len(df)
+            df.to_sql(table_name, self._csv_engine, if_exists="replace" if is_first else "append", index=False)
+            is_first = False
+
+        if n_rows == 0:
+            raise ValueError("CSV contains no parseable rows.")
         _touch(table_name, n_rows, filename)
         return table_name, n_rows, cols
 
