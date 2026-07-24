@@ -31,6 +31,11 @@ def create_app() -> FastAPI:
 
  if _FRONTEND_DIR.is_dir():
   app.mount("/app", StaticFiles(directory=_FRONTEND_DIR, html=True), name="frontend")
+  
+  from fastapi.responses import RedirectResponse
+  @app.get("/")
+  def root_redirect():
+      return RedirectResponse(url="/app/")
 
  return app
 
