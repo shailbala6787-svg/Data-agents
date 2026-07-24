@@ -28,7 +28,6 @@ def build_agent():
 
     g.set_entry_point("ingest_node")
 
-    # Conditional edges: each stage -> next stage, finalize, or handle_error
     stages = ["ingest_node", "plan_node", "execute_node", "response_node"]
     for i, src in enumerate(stages):
         targets: dict[str, str] = {}
@@ -36,7 +35,23 @@ def build_agent():
             targets[stages[i + 1]] = stages[i + 1]
         targets["finalize"] = "finalize"
         targets["handle_error"] = "handle_error"
-        g.add_conditional_edges(src, after_node, targets)
+        
+        def make_cond(current: str):
+            def _cond(state: AgentState) -> str:
+                if state.get("error"):
+                    return "handle_error"
+                if state.get("next"):
+                    # Only use explicit next if it's in our allowed targets
+                    nxt = state["next"]
+                    if nxt in targets:
+                        return nxt
+                idx = stages.index(current)
+                if idx + 1 < len(stages):
+                    return stages[idx + 1]
+                return "finalize"
+            return _cond
+
+        g.add_conditional_edges(src, make_cond(src), targets)
 
     g.add_edge("finalize", END)
     g.add_edge("handle_error", END)
