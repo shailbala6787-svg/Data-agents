@@ -414,29 +414,21 @@ def execute_node(state: AgentState) -> AgentState:
             return result
 
     # ---- CSV path ----
-    for tbl in csv_tables:
-        tname = tbl.get("table_name", "")
-        if not tname:
-            continue
+    if csv_tables and not (conn_id is not None and user_id):
         try:
-            csv_df = pd.read_sql(
-                sa.text(f"SELECT * FROM {tname}"), mgr._csv_engine
-            )
+            capped = f"SELECT * FROM ({sql}) AS _upc LIMIT 50000"
+            with mgr._csv_engine.connect() as conn:
+                csv_df = pd.read_sql(sa.text(capped), conn)
             if csv_df is not None and not csv_df.empty:
                 dfs.append(csv_df)
             source_summary.append(
-                f"CSV '{tbl.get('original_name', tname)}' - {len(csv_df)} row(s)"
+                f"CSV Query - {len(csv_df)} row(s)"
             )
-            # --- DEBUG ---
-            _log.info(
-                "[EXECUTE] csv_df[%s] shape=%s cols=%s",
-                tname,
-                csv_df.shape,
-                csv_df.columns.tolist(),
-            )
-            # --- END DEBUG ---
         except Exception as exc:
-            _log.debug("csv_read_failed(%s): %s", tname, exc)
+            _log.debug("csv_read_failed: %s", exc)
+            out["error"] = f"CSV query failed: {exc}"
+            result = out
+            return result
 
     if not dfs:
         out["df_json"] = "[]"

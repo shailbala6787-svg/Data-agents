@@ -52,8 +52,9 @@ class ConnectionManager:
                 raise ValueError("AGENT_FERNET_KEY is not valid. Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key())'") from exc
 
         self._schema_cache: dict[tuple[str, int], dict[str, Any]] = {}
+        db_path = os.path.join(os.path.dirname(__file__), "..", "..", ".csv_temp.db")
         self._csv_engine = sa.create_engine(
-            "sqlite://", poolclass=sa.StaticPool, connect_args={"check_same_thread": False}, echo=False
+            f"sqlite:///{db_path}", connect_args={"check_same_thread": False}, echo=False
         )
         try:
             from src.config.settings import get_settings
