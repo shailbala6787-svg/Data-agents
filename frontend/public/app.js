@@ -1,4 +1,16 @@
-const API_BASE = window.location.origin
+let API_BASE = window.location.origin
+if (window.location.hostname.includes('github.io')) {
+  const storedApi = localStorage.getItem('upa.api_base');
+  if (storedApi) {
+    API_BASE = storedApi;
+  } else {
+    const userInput = prompt("Please enter your Render Backend URL to connect the app (e.g., https://your-app.onrender.com):");
+    if (userInput) {
+      API_BASE = userInput.trim().replace(/\/$/, "");
+      localStorage.setItem('upa.api_base', API_BASE);
+    }
+  }
+}
 let currentRole = localStorage.getItem('upa.role') || 'officer'
 let csvTables = []
 let dbProfiles = []
