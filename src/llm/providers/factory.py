@@ -11,6 +11,7 @@ from src.llm.providers.anthropic import AnthropicProvider
 from src.llm.providers.base import LLMError, LLMProvider
 from src.llm.providers.gemini import GeminiProvider
 from src.llm.providers.openrouter import OpenRouterProvider
+from src.llm.providers.ollama import OllamaProvider
 
 
 def create_llm_provider() -> LLMProvider:
