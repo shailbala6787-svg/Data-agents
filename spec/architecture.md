@@ -1,68 +1,103 @@
 # Architecture
 
-> Fill in this section — see comments below.
-
----
-
 ## System Overview
 
-<!-- FILL IN: One paragraph describing the system at a high level. Who/what interacts with it? -->
+UP Police Data Analyst is a local FastAPI service that lets two distinct user
+personas — **Field Officers** (quick one-shot queries) and **Investigators /
+Analysts** (deep iterative analysis) — ask natural-language questions against
+two data sources: **uploaded CSV files** (ad-hoc exports: incident logs, court
+records, call-detail records) and a **live MsSQL Police Database** (e.g.,
+CRIMEA / e-FIR). All inference runs on-premises via Ollama.  Data never leaves
+the premises.  The service exposes a small REST API consumed by a static
+frontend and an async query-execution path for long-running DB scans so the UI
+remains responsive under load.
 
 ## Component Map
 
-<!-- FILL IN: List the major components and what each does. -->
-
 ```
-[Component A]
-    ↓
-[Component B]   ←→   [External Service]
-    ↓
-[Component C]
+[Browser — static frontend]
+       │  HTTPS (localhost)
+       ▼
+[FastAPI — API layer]
+   ├─► [Auth layer] — role gate (officer / analyst / admin)
+   ├─► [Session / Workspace API] — run CRUD
+   ├─► [CSV Upload API] — chunk → schema infer → SQLite temp table
+   ├─► [DB Connection API] — profile store (encrypted creds)
+   └─► [Q&A API] — POST /runs/{id}/ask
+            │
+            ▼
+       [Agent Graph — LangGraph]
+       ├── ingest_node          — load CSVs, schema cache
+       ├── plan_node            — LLM: build query plan (analyst only)
+       ├── execute_node         — run query (SQLAlchemy / pyodbc)
+       │       ├── CSV path     — pandas → SQLite temp
+       │       ├── DB path      — MSOLEDB / pyodbc (read-only)
+       │       └── join path    — cross-source UNION / JOIN
+       ├── response_node        — LLM: format for role
+       └── error_node
+            │
+            ▼
+       [Observability] — structured log per stage, run_id scoped
+       [SQLite run store] — run history per user (not DB data)
+
+[Optional: In-process cache]
+   └─► Schema cache (TTL 1h) — avoids re-sampling MsSQL sys.tables
 ```
 
 ## Layers
 
-<!-- FILL IN: Describe the layers of the system (e.g., API → Agent Loop → Tools → Storage). -->
-
 | Layer | Responsibility |
 |-------|----------------|
-| <!-- layer --> | <!-- responsibility --> |
+| API | Auth, request routing, file upload, connection profile CRUD, SSE streaming |
+| Agent Graph | Orchestrates plan → execute → format loop; LangGraph stateful |
+| Tools / Executors | SQLAlchemy via pyodbc for MsSQL; pandas for CSV → SQLite |
+| LLM | Ollama local provider (pluggable); single wrapper for future backend swap |
+| Storage | SQLite for run history; MsSQL via read-only connection pool for live data |
+| Observability | structlog + per-node spans; audit log flush to append-only file |
 
 ## Data Flow
 
-<!-- FILL IN: Walk through the main data flow from trigger to output. -->
-
-1. Trigger: <!-- how does the agent start? (cron, webhook, user input, etc.) -->
-2. <!-- step 2 -->
-3. <!-- step 3 -->
-4. Output: <!-- what does the agent produce? -->
+1. **Setup phase** — Analyst uploads CSV -> schema inferred, stored as temp
+   SQLite table, schema fingerprint cached.  Analyst (or admin) saves an MsSQL
+   connection profile (encrypted at rest in SQLite using Fernet).
+2. **Query phase (officer)** — Officer asks plain-language question ->
+   single LLM call -> SQL generated -> executed with hard row cap (10 000)
+   -> answer returned as plain text / tight table.
+3. **Query phase (analyst)** — LLM drafts plan -> executes with row cap advisory
+   (default 100 000, override with approval) -> loops if result quality is
+   poor -> auto anomaly-scan pass -> structured markdown report.
+4. **Cross-source join** — When CSV and DB column names match semantically,
+   agent auto-joins after schema alignment check with analyst confirmation.
 
 ## External Dependencies
 
-<!-- FILL IN: APIs, services, databases the agent depends on. -->
-
 | Dependency | Purpose | Failure Mode |
 |------------|---------|--------------|
-| <!-- name --> | <!-- what it does --> | <!-- what happens if it's down --> |
+| MsSQL server | Live police data | Serve CSV-only cached answers; surface "DB unavailable" |
+| Ollama (localhost:11434) | All LLM inference | Hard stop with user-friendly error; no outbound fallback |
+| SQLite (local file) | Run history | Non-critical; agent falls back to in-memory session |
 
 ## Stack
 
-> This project's concrete technology choices (captured at intake, filled by the spec-writer). The generic, every-project rules — model-naming, DB driver, dev port, test environment — live in `harness/patterns/tech-stack.md`; this section is only what **this** project picked.
+- **Language:** Python 3.11+
+- **Agent framework:** LangGraph >= 0.2.28
+- **LLM provider (local):** Ollama (pluggable — see src/llm/providers/)
+  Default model: `llama3.2:3b` (fast, on modest GPU/CPU); override via `AGENT_OLLAMA_MODEL`
+- **Backend:** FastAPI + Uvicorn (already in baseline)
+- **Database:** SQLite (existing, run history) + MsSQL via pyodbc (live data)
+- **Frontend:** Vanilla HTML/CSS/JS (existing pattern, extended)
+- **Dependency management:** uv + pyproject.toml (existing)
+- **Schema cache:** In-process TTL dict (no external cache server)
 
-- **Language:** <!-- FILL IN: e.g., Python 3.12 -->
-- **Agent framework:** <!-- FILL IN: e.g., LangGraph / custom / none -->
-- **LLM provider + model:** <!-- FILL IN: e.g., Anthropic / claude-sonnet-4-6 -->
-- **Backend:** <!-- FILL IN: e.g., FastAPI / none -->
-- **Database + ORM:** <!-- FILL IN: e.g., PostgreSQL + SQLAlchemy 2.0 / none -->
-- **Frontend:** <!-- FILL IN: e.g., Next.js / none -->
-- **Dependency management:** <!-- FILL IN: e.g., uv + pyproject.toml -->
-
-| Key library | Version | Purpose |
-|-------------|---------|---------|
-| <!-- name --> | <!-- ver --> | <!-- purpose --> |
-
-**Avoid:** <!-- FILL IN: libraries/patterns explicitly off-limits, and why -->
+**Avoid:**
+- Any outbound AI API (Anthropic, Gemini, OpenRouter) — forbidden by data-residency decision
+- Raw ad-hoc SQL from officer-mode queries — all SQL generated by LLM, then passed through read-only proxy
+- Storing MsSQL credentials in plain text — always encrypted (Fernet key from env)
 
 ## Deployment Model
 
-<!-- FILL IN: How does this run? (local script, cloud function, long-running service, etc.) -->
+Long-running local service.  Default port 8001 (configurable via `PORT` env).
+Admin manually starts: `uv run python agent.py --run`.  Frontend served at `/app`.
+Single-machine, single-user credential store.  For multi-officer scaling, a
+reverse proxy with per-user auth tokens is the next upgrade (documented but not
+implemented in this phase).

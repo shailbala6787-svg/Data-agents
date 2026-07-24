@@ -11,9 +11,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Provider defaults used when AGENT_LLM_MODEL is blank. Verify against current
 # provider docs before pinning — a 404 from the LLM API usually means a stale name.
 DEFAULT_MODELS = {
-    "anthropic": "claude-sonnet-4-6",
-    "gemini": "gemini-2.5-flash",
-    "openrouter": "tencent/hy3",  # cheap default ($0.14/M in) — frontier models 402 on unfunded keys; override via AGENT_LLM_MODEL
+ "anthropic": "claude-sonnet-4-6",
+ "gemini": "gemini-1.5-flash",
+ "openrouter": "tencent/hy3",
+ "ollama": "llama3.2:3b",
 }
 
 
@@ -27,16 +28,27 @@ class Settings(BaseSettings):
 
     database_url: str = Field(default="sqlite:///./data/app.db")
 
-    # "auto" resolves to whichever provider key is set.
-    llm_provider: str = Field(default="auto")
+    llm_provider: str = Field(
+    default="auto",
+    description="ollama | anthropic | gemini | openrouter | auto",
+    )
     llm_model: str = Field(default="")
+    ollama_base_url: str = Field(default="http://localhost:11434")
+    ollama_model: str = Field(default="llama3.2:3b")
 
+    # Credential encryption secret for stored MsSQL profiles. Generate with:
+    #   python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key())"
+    # Leave blank for dev (credentials stored as plaintext).
+    fernet_key: str = Field(default="")
     anthropic_api_key: str = Field(default="")
     gemini_api_key: str = Field(default="")
     openrouter_api_key: str = Field(default="")
     openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1")
 
     log_level: str = Field(default="INFO")
+
+    csv_max_bytes: int = Field(default=524288000)
+    port: int = Field(default=8001)
 
     # ----- derived -----
     def resolve_provider(self) -> str:
@@ -49,7 +61,7 @@ class Settings(BaseSettings):
         if self.gemini_api_key:
             return "gemini"
         if self.openrouter_api_key:
-            return "openrouter"
+         return "openrouter"
         return "stub"
 
     def resolve_model(self) -> str:

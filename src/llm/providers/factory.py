@@ -14,20 +14,25 @@ from src.llm.providers.openrouter import OpenRouterProvider
 
 
 def create_llm_provider() -> LLMProvider:
-    s = get_settings()
-    provider = s.resolve_provider()
-    model = s.resolve_model()
+ s = get_settings()
+ provider = s.resolve_provider()
+ model = s.resolve_model()
 
-    if provider == "anthropic":
-        return AnthropicProvider(api_key=s.anthropic_api_key, model=model)
-    if provider == "gemini":
-        return GeminiProvider(api_key=s.gemini_api_key, model=model)
-    if provider == "openrouter":
-        return OpenRouterProvider(
-            api_key=s.openrouter_api_key, model=model, base_url=s.openrouter_base_url
-        )
-    raise LLMError(
-        "No LLM API key configured. Set exactly one of AGENT_ANTHROPIC_API_KEY, "
-        "AGENT_GEMINI_API_KEY, or AGENT_OPENROUTER_API_KEY in .env "
-        "(see .env.example)."
-    )
+ if provider == "anthropic":
+  return AnthropicProvider(api_key=s.anthropic_api_key, model=model)
+ if provider == "gemini":
+  return GeminiProvider(api_key=s.gemini_api_key, model=model)
+ if provider == "openrouter":
+  return OpenRouterProvider(
+   api_key=s.openrouter_api_key, model=model, base_url=s.openrouter_base_url
+  )
+ if provider == "ollama":
+  return OllamaProvider(
+   base_url=s.ollama_base_url or "http://localhost:11434",
+   model=model or s.ollama_model or "llama3.2:3b",
+  )
+ raise LLMError(
+ "No LLM provider configured. Set AGENT_LLM_PROVIDER=ollama and provide "
+ "a running local Ollama instance (http://localhost:11434), or set a cloud "
+ "provider key in .env."
+ )

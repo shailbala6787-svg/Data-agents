@@ -1,48 +1,198 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zero-Shot Agent — Transform</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>UP Police Data Analyst</title>
+  <link rel="stylesheet" href="/app/styles.css" />
 </head>
 <body>
-  <main class="shell">
-    <header class="topbar">
-      <h1>Zero-Shot Agent</h1>
-      <span id="provider-badge" class="badge" title="Active LLM provider">…</span>
-    </header>
-
-    <!-- CAPABILITY SLOT — replace this form with your agent's UI -->
-    <section class="card" id="transform-card">
-      <h2>Transform text</h2>
-      <p class="hint">The baseline capability: give it text and an instruction; it applies the
-        instruction with one real LLM call.</p>
-
-      <label for="instruction">Instruction</label>
-      <input id="instruction" type="text"
-             value="Summarize the text in one short paragraph." />
-
-      <label for="text">Text</label>
-      <textarea id="text" rows="8"
-                placeholder="Paste the text to transform…"></textarea>
-
-      <button id="run-btn">Run</button>
-
-      <div id="status" class="status" hidden></div>
-      <div id="error" class="error" hidden></div>
-
-      <div id="result-wrap" hidden>
-        <h3>Result</h3>
-        <pre id="result"></pre>
-        <p class="meta" id="result-meta"></p>
+  <div class="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-logo">
+          <img src="/app/logo.png" alt="UP Police" />
+        </div>
+        <div class="brand-text">
+          <h1>UP Police</h1>
+          <p>Data Analyst</p>
+        </div>
       </div>
-    </section>
 
-    <footer class="foot">
-      <span>API docs at <a href="/docs">/docs</a> · health at <a href="/health">/health</a></span>
-    </footer>
-  </main>
-  <script src="app.js"></script>
+      <nav class="nav">
+        <button class="nav-btn active" data-view="chat">
+          <span>💬</span>
+          <span>Chat</span>
+        </button>
+        <button class="nav-btn" data-view="data">
+          <span>📊</span>
+          <span>Data Sources</span>
+        </button>
+        <button class="nav-btn" data-view="connections">
+          <span>🔗</span>
+          <span>Connections</span>
+        </button>
+      </nav>
+
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot"></span>
+        <span class="status-text">Ready</span>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main">
+      <!-- Chat View -->
+      <section class="view active" id="view-chat">
+        <header class="view-header">
+          <div>
+            <h2>Investigation Assistant</h2>
+            <p class="subtitle">Ask questions about your data in plain language</p>
+          </div>
+          <div class="role-switch">
+            <button class="role-btn" data-role="officer">Field Officer</button>
+            <button class="role-btn active" data-role="analyst">Analyst</button>
+          </div>
+        </header>
+
+        <div class="chat-area" id="chatArea">
+          <div class="welcome-card">
+            <div class="welcome-icon">👋</div>
+            <h3>Welcome to UP Police Data Analyst</h3>
+            <p>Get started by uploading a CSV file or connecting a database, then ask your question below.</p>
+            <div class="quick-actions">
+              <button class="quick-btn" onclick="switchView('data')">
+                <span>📁</span> Upload CSV
+              </button>
+              <button class="quick-btn" onclick="switchView('connections')">
+                <span>🔗</span> Add Database
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <form class="chat-bar" id="chatForm">
+          <textarea
+            id="questionInput"
+            rows="2"
+            placeholder="Ask a question like: 'Show total crime cases by district last month'"
+            required
+          ></textarea>
+          <button type="submit" id="sendBtn" class="send-btn">
+            <span>Send</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </form>
+      </section>
+
+      <!-- Data Sources View -->
+      <section class="view" id="view-data">
+        <header class="view-header">
+          <div>
+            <h2>Data Sources</h2>
+            <p class="subtitle">Upload CSV files to analyze them</p>
+          </div>
+        </header>
+
+        <div class="data-grid">
+          <!-- Upload Card -->
+          <div class="card upload-zone" id="uploadZone">
+            <div class="upload-icon">📤</div>
+            <h3>Upload CSV File</h3>
+            <p class="hint">Supports files up to 500 MB. Large files may take a moment to process.</p>
+            <label class="file-input-wrapper">
+              <input type="file" id="csvInput" accept=".csv" hidden />
+              <span class="file-btn">Choose File</span>
+            </label>
+            <div class="upload-feedback" id="uploadFeedback"></div>
+          </div>
+
+          <!-- Tables Card -->
+          <div class="card tables-card">
+            <div class="tables-header">
+              <h3>📋 Active Data Tables</h3>
+              <button class="refresh-btn" onclick="loadCsvTables()" title="Refresh list">
+                ↻
+              </button>
+            </div>
+            <p class="hint">Tables from uploaded files are available until the server restarts.</p>
+            <div class="tables-list" id="csvTables">
+              <div class="empty-state">
+                <span class="empty-icon">📭</span>
+                <p>No tables loaded yet.</p>
+                <p class="empty-hint">Upload a CSV to get started.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Connections View -->
+      <section class="view" id="view-connections">
+        <header class="view-header">
+          <div>
+            <h2>Database Connections</h2>
+            <p class="subtitle">Connect to live MsSQL databases</p>
+          </div>
+        </header>
+
+        <div class="connections-grid">
+          <!-- New Connection Form -->
+          <div class="card form-card">
+            <h3>New Connection</h3>
+            <form id="dbForm" class="db-form">
+              <div class="form-group">
+                <label>Profile Name</label>
+                <input name="name" placeholder="e.g. District HQ Database" required />
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Server</label>
+                  <input name="server" placeholder="hostname or IP" required />
+                </div>
+                <div class="form-group">
+                  <label>Database</label>
+                  <input name="database" placeholder="database name" required />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Username</label>
+                  <input name="username" placeholder="read-only user" />
+                </div>
+                <div class="form-group">
+                  <label>Password</label>
+                  <input name="password" type="password" placeholder="••••••••" />
+                </div>
+              </div>
+              <label class="checkbox-label">
+                <input name="trust_server_certificate" type="checkbox" />
+                <span>Trust server certificate (development only)</span>
+              </label>
+              <button type="submit" class="primary-btn">Save Connection</button>
+            </form>
+          </div>
+
+          <!-- Saved Profiles -->
+          <div class="card list-card">
+            <h3>Saved Connections</h3>
+            <div class="profiles-list" id="profileList">
+              <div class="empty-state">
+                <span class="empty-icon">🔌</span>
+                <p>No saved connections.</p>
+                <p class="empty-hint">Add a connection to query live databases.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="/app/app.js"></script>
 </body>
 </html>
