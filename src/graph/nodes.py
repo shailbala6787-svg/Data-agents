@@ -50,15 +50,37 @@ def _boot(state: AgentState, mgr: ConnectionManager) -> AgentState:
     print(f"[TRACE _boot] IN state keys={sorted(state.keys() if state else [])}")
     out: AgentState = {"error": None, **(state or {})}
     print(f"[TRACE _boot] OUT keys={sorted(out.keys())}")
+    
+    schema = {"tables": []}
+    
     if state.get("db_conn_id") and state.get("user_id"):
         try:
-            _, _, schema = mgr.get_session(
+            _, _, db_schema = mgr.get_session(
                 state["user_id"], int(state["db_conn_id"]), state.get("role", "officer")
             )
-            out["schema"] = schema  # type: ignore[assignment]
-            out["schema_hint"] = get_schema_hint(schema)  # type: ignore[assignment]
+            schema["tables"].extend(db_schema.get("tables", []))
         except Exception as exc:
             _log.warning("schema_load_failed: %s", exc)
+
+    csv_tables = out.get("csv_tables", [])
+    if csv_tables:
+        try:
+            with mgr._csv_engine.connect() as conn:
+                for tbl in csv_tables:
+                    tname = tbl.get("table_name")
+                    if not tname: continue
+                    rows = conn.execute(sa.text(f"PRAGMA table_info('{tname}')")).fetchall()
+                    cols = []
+                    for r in rows:
+                        cols.append({"name": r[1], "type": r[2], "nullable": not bool(r[3])})
+                    schema["tables"].append({"name": tname, "columns": cols})
+        except Exception as exc:
+            _log.warning("csv_schema_load_failed: %s", exc)
+
+    if schema["tables"]:
+        out["schema"] = schema  # type: ignore[assignment]
+        out["schema_hint"] = get_schema_hint(schema)  # type: ignore[assignment]
+
     return out
 
 

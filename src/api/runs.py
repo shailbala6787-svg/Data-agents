@@ -38,12 +38,16 @@ def _to_result(run: RunRow) -> RunResult:
 @router.post("/runs/ask")
 async def ask(req: AskRequest, session: Session = Depends(get_session)):
     try:
+        reg = _load_registry()
+        csv_files = [{"table_name": t, "original_name": t} for t in reg.keys()]
+        
         state: dict[str, Any] = {
             "run_id": f"api-{abs(hash(req.question)) % 100000 + 1000}",
             "user_id": "default",
             "question": req.question,
             "role": req.role,
             "db_conn_id": req.db_conn_id,
+            "csv_files": csv_files,
             "error": None,
         }
         out = agentic_ai.invoke(state)
