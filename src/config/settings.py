@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
 
     csv_max_bytes: int = Field(default=524288000)
+    csv_database_url: str = Field(default="")
     port: int = Field(default=8001)
 
     # ----- derived -----

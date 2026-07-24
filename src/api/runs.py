@@ -14,7 +14,7 @@ from src.api.schemas import (
     UploadResponse,
 )
 from src.config.settings import get_settings
-from src.db.connections import ConnectionManager, _load_registry, _touch
+from src.db.connections import ConnectionManager
 from src.db.models import RunRow
 from src.db.session import get_session
 from src.domain.run import RunRequest, RunResult
@@ -38,7 +38,10 @@ def _to_result(run: RunRow) -> RunResult:
 @router.post("/runs/ask")
 async def ask(req: AskRequest, session: Session = Depends(get_session)):
     try:
-        reg = _load_registry()
+        mgr = ConnectionManager(
+            ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
+        )
+        reg = mgr._temp_tables
         csv_files = []
         for t, v in reg.items():
             if isinstance(v, dict):
@@ -177,7 +180,7 @@ def delete_csv_table(table_name: str):
     mgr = ConnectionManager(
         ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
     )
-    reg = _load_registry()
+    reg = mgr._temp_tables
     if table_name not in reg:
         raise api_error("table_not_found", f"No temp table: {table_name}", 404)
     mgr.drop_temp_table(table_name)
@@ -186,7 +189,10 @@ def delete_csv_table(table_name: str):
 
 @router.get("/runs/csv-tables")
 async def csv_tables():
-    reg = _load_registry()
+    mgr = ConnectionManager(
+        ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
+    )
+    reg = mgr._temp_tables
     out: list[dict[str, Any]] = []
     for table_name, v in reg.items():
         if isinstance(v, dict):

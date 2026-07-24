@@ -12,34 +12,11 @@ import sqlalchemy as sa
 from cryptography.fernet import Fernet, InvalidToken
 
 _SCHEMA_CACHE_TTL_S = 3600
-_TABLE_REG_PATH = os.path.join(os.path.dirname(__file__), "..", "..", ".tmp_tables.json")
-
 _ROLE_ROW_CAPS: dict[str, int] = {
  "officer": 10_000,
  "analyst": 50_000,
  "admin": 500_000,
 }
-
-
-def _load_registry() -> dict:
-    try:
-        with open(_TABLE_REG_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
-
-
-def _save_registry(reg: dict) -> None:
-    os.makedirs(os.path.dirname(_TABLE_REG_PATH), exist_ok=True)
-    with open(_TABLE_REG_PATH, "w", encoding="utf-8") as f:
-        json.dump(reg, f)
-
-
-def _touch(table_name: str, n_rows: int, original_name: str = "") -> None:
-    reg = _load_registry()
-    # Support backward compatibility by storing a dict instead of int
-    reg[table_name] = {"rows": int(n_rows), "original_name": original_name}
-    _save_registry(reg)
 
 
 class ConnectionManager:
@@ -53,10 +30,30 @@ class ConnectionManager:
                 raise ValueError("AGENT_FERNET_KEY is not valid. Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key())'") from exc
 
         self._schema_cache: dict[tuple[str, int], dict[str, Any]] = {}
-        db_path = os.path.join(os.path.dirname(__file__), "..", "..", ".csv_temp.db")
-        self._csv_engine = sa.create_engine(
-            f"sqlite:///{db_path}", connect_args={"check_same_thread": False}, echo=False
-        )
+        
+        try:
+            from src.config.settings import get_settings
+            csv_db_url = get_settings().csv_database_url
+        except Exception:
+            csv_db_url = ""
+
+        if csv_db_url:
+            self._csv_engine = sa.create_engine(csv_db_url, pool_pre_ping=True)
+        else:
+            db_path = os.path.join(os.path.dirname(__file__), "..", "..", ".csv_temp.db")
+            self._csv_engine = sa.create_engine(
+                f"sqlite:///{db_path}", connect_args={"check_same_thread": False}, echo=False
+            )
+            
+        # Ensure metadata table exists
+        with self._csv_engine.begin() as conn:
+            conn.execute(sa.text("""
+                CREATE TABLE IF NOT EXISTS _csv_metadata (
+                    table_name VARCHAR(255) PRIMARY KEY,
+                    original_name VARCHAR(255),
+                    rows INTEGER
+                )
+            """))
         try:
             from src.config.settings import get_settings
 
@@ -68,7 +65,30 @@ class ConnectionManager:
 
     @property
     def _temp_tables(self) -> dict[str, dict]:
-        return _load_registry()
+        reg = {}
+        try:
+            with self._csv_engine.connect() as conn:
+                rows = conn.execute(sa.text("SELECT table_name, original_name, rows FROM _csv_metadata")).fetchall()
+                for r in rows:
+                    # Depending on SQLAlchemy version and DB driver, r might be a tuple or Row
+                    table_name = r[0] if isinstance(r, tuple) else getattr(r, 'table_name', r[0])
+                    original_name = r[1] if isinstance(r, tuple) else getattr(r, 'original_name', r[1])
+                    num_rows = r[2] if isinstance(r, tuple) else getattr(r, 'rows', r[2])
+                    reg[table_name] = {"rows": num_rows, "original_name": original_name}
+        except Exception:
+            pass
+        return reg
+        
+    def _touch_metadata(self, table_name: str, n_rows: int, original_name: str = "") -> None:
+        try:
+            with self._csv_engine.begin() as conn:
+                # Use a dialect-agnostic approach by deleting then inserting
+                conn.execute(sa.text("DELETE FROM _csv_metadata WHERE table_name = :t"), {"t": table_name})
+                conn.execute(sa.text(
+                    "INSERT INTO _csv_metadata (table_name, original_name, rows) VALUES (:t, :o, :r)"
+                ), {"t": table_name, "o": original_name, "r": int(n_rows)})
+        except Exception:
+            pass
 
     # ---- helpers ----
 
@@ -217,7 +237,7 @@ class ConnectionManager:
 
         if n_rows == 0:
             raise ValueError("CSV contains no parseable rows.")
-        _touch(table_name, n_rows, filename)
+        self._touch_metadata(table_name, n_rows, filename)
         return table_name, n_rows, cols
 
     def drop_temp_table(self, table_name: str) -> None:
@@ -227,9 +247,11 @@ class ConnectionManager:
                     conn.execute(sa.text(f'DROP TABLE IF EXISTS "{table_name}"'))
             except Exception:
                 pass
-            reg = _load_registry()
-            reg.pop(table_name, None)
-            _save_registry(reg)
+            try:
+                with self._csv_engine.begin() as conn:
+                    conn.execute(sa.text("DELETE FROM _csv_metadata WHERE table_name = :t"), {"t": table_name})
+            except Exception:
+                pass
 
     def cleanup_temp_tables(self) -> None:
         for t in list(self._temp_tables):
