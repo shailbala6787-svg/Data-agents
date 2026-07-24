@@ -34,7 +34,7 @@ function setRole(role) {
 
 /* ---------- Chat ---------- */
 
-function appendMessage({ role, text, meta }) {
+function appendMessage({ role, text, meta, chart, table_data }) {
   const area = $('#chatArea')
 
   // Remove welcome card if present
@@ -51,9 +51,85 @@ function appendMessage({ role, text, meta }) {
   const bubble = document.createElement('div')
   bubble.className = 'bubble'
 
-  const p = document.createElement('p')
-  p.textContent = text
-  bubble.appendChild(p)
+  const content = document.createElement('div')
+  content.className = 'msg-content markdown-body'
+  
+  if (window.marked && text) {
+    content.innerHTML = marked.parse(text)
+  } else {
+    content.textContent = text
+  }
+  bubble.appendChild(content)
+
+  // Render Data Table
+  if (table_data && table_data.columns && table_data.rows) {
+     const tableWrapper = document.createElement('div')
+     tableWrapper.className = 'data-table-wrapper'
+     
+     const table = document.createElement('table')
+     table.className = 'data-table'
+     
+     // Headers
+     const thead = document.createElement('thead')
+     const trHead = document.createElement('tr')
+     table_data.columns.forEach(col => {
+       const th = document.createElement('th')
+       th.textContent = col
+       trHead.appendChild(th)
+     })
+     thead.appendChild(trHead)
+     table.appendChild(thead)
+     
+     // Body
+     const tbody = document.createElement('tbody')
+     table_data.rows.forEach(row => {
+       const tr = document.createElement('tr')
+       table_data.columns.forEach(col => {
+         const td = document.createElement('td')
+         td.textContent = row[col] !== null ? row[col] : ''
+         tr.appendChild(td)
+       })
+       tbody.appendChild(tr)
+     })
+     table.appendChild(tbody)
+     tableWrapper.appendChild(table)
+     bubble.appendChild(tableWrapper)
+  }
+  
+  // Render Chart
+  if (chart && chart.type && window.Chart) {
+    const canvasWrapper = document.createElement('div')
+    canvasWrapper.className = 'chart-wrapper'
+    const canvas = document.createElement('canvas')
+    canvasWrapper.appendChild(canvas)
+    bubble.appendChild(canvasWrapper)
+    
+    setTimeout(() => {
+        new Chart(canvas, {
+          type: chart.type === 'bar' ? 'bar' : chart.type,
+          data: {
+            labels: chart.x || [],
+            datasets: [{
+              label: chart.ylabel || 'Value',
+              data: chart.y || [],
+              backgroundColor: 'rgba(54, 162, 235, 0.6)',
+              borderColor: 'rgba(54, 162, 235, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              title: {
+                display: !!chart.title,
+                text: chart.title
+              }
+            }
+          }
+        })
+    }, 10)
+  }
 
   if (meta) {
     const m = document.createElement('div')
@@ -106,6 +182,24 @@ async function sendQuestion(question) {
     }
 
       let runId = startData?.data?.run_id || startData?.run_id
+      
+      const startStatus = startData?.data?.status || startData?.status
+      if (startStatus === 'completed' || startStatus === 'failed') {
+        const out = startData?.data?.output || startData?.output || ''
+        const chart = startData?.data?.chart || startData?.chart
+        const table_data = startData?.data?.table_data || startData?.table_data
+        const err = startData?.data?.error || startData?.error || ''
+        
+        appendMessage({
+          role: 'assistant',
+          text: startStatus === 'failed' ? `❌ ${err || 'Run failed.'}` : out || `${startStatus}`,
+          meta: `Run #${runId}`,
+          chart: chart,
+          table_data: table_data
+        })
+        return
+      }
+
       appendMessage({
         role: 'assistant',
         text: '⏳ Processing your request…',
