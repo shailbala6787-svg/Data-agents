@@ -73,10 +73,13 @@ def _boot(state: AgentState, mgr: ConnectionManager) -> AgentState:
                     tname = tbl.get("table_name")
                     if not tname: continue
                     rows = conn.execute(sa.text(f"PRAGMA table_info('{tname}')")).fetchall()
+                    if not rows:
+                        continue
                     cols = []
                     for r in rows:
                         cols.append({"name": r[1], "type": r[2], "nullable": not bool(r[3])})
-                    schema["tables"].append({"name": tname, "columns": cols})
+                    original = tbl.get("original_name")
+                    schema["tables"].append({"name": tname, "original_name": original, "columns": cols})
         except Exception as exc:
             _log.warning("csv_schema_load_failed: %s", exc)
 
