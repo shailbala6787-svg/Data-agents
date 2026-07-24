@@ -12,7 +12,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # provider docs before pinning — a 404 from the LLM API usually means a stale name.
 DEFAULT_MODELS = {
  "anthropic": "claude-sonnet-4-6",
- "gemini": "gemini-1.5-flash",
+ "gemini": "gemini-flash-latest",
  "openrouter": "tencent/hy3",
  "ollama": "llama3.2:3b",
 }
