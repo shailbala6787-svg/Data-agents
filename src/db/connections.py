@@ -35,9 +35,10 @@ def _save_registry(reg: dict) -> None:
         json.dump(reg, f)
 
 
-def _touch(table_name: str, n_rows: int) -> None:
+def _touch(table_name: str, n_rows: int, original_name: str = "") -> None:
     reg = _load_registry()
-    reg[table_name] = int(n_rows)
+    # Support backward compatibility by storing a dict instead of int
+    reg[table_name] = {"rows": int(n_rows), "original_name": original_name}
     _save_registry(reg)
 
 
@@ -66,7 +67,7 @@ class ConnectionManager:
             self._csv_max_bytes = 500 * 1024 * 1024
 
     @property
-    def _temp_tables(self) -> dict[str, int]:
+    def _temp_tables(self) -> dict[str, dict]:
         return _load_registry()
 
     # ---- helpers ----
@@ -208,7 +209,7 @@ class ConnectionManager:
         cols = infer_schema(df)
         n_rows = len(df)
         load_csv_to_sqlite(self._csv_engine, table_name, df)
-        _touch(table_name, n_rows)
+        _touch(table_name, n_rows, filename)
         return table_name, n_rows, cols
 
     def drop_temp_table(self, table_name: str) -> None:

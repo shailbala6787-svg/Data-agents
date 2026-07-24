@@ -39,7 +39,12 @@ def _to_result(run: RunRow) -> RunResult:
 async def ask(req: AskRequest, session: Session = Depends(get_session)):
     try:
         reg = _load_registry()
-        csv_files = [{"table_name": t, "original_name": t} for t in reg.keys()]
+        csv_files = []
+        for t, v in reg.items():
+            if isinstance(v, dict):
+                csv_files.append({"table_name": t, "original_name": v.get("original_name", t)})
+            else:
+                csv_files.append({"table_name": t, "original_name": t})
         
         state: dict[str, Any] = {
             "run_id": f"api-{abs(hash(req.question)) % 100000 + 1000}",
@@ -151,8 +156,6 @@ async def upload_csv(request: Request, session: Session = Depends(get_session)):
                 errors.append({"filename": f.filename, "error": "Empty file."})
                 continue
             table_name, n_rows, cols = mgr.csv_to_sqlite(raw, f.filename)
-            if table_name:
-                _touch(table_name, n_rows)
             uploaded.append({
                 "filename": f.filename,
                 "table_name": table_name,
@@ -185,8 +188,11 @@ def delete_csv_table(table_name: str):
 async def csv_tables():
     reg = _load_registry()
     out: list[dict[str, Any]] = []
-    for table_name, row_count in reg.items():
-        out.append({"table_name": table_name, "rows": row_count, "filename": table_name})
+    for table_name, v in reg.items():
+        if isinstance(v, dict):
+            out.append({"table_name": table_name, "rows": v.get("rows", 0), "filename": v.get("original_name", table_name)})
+        else:
+            out.append({"table_name": table_name, "rows": v, "filename": table_name})
     return ok({"tables": out})
 
 

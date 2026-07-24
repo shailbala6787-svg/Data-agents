@@ -38,7 +38,10 @@ def _get_mgr() -> ConnectionManager:
 def get_schema_hint(schema: dict) -> str:
     lines: list[str] = []
     for tbl in schema.get("tables", []):
-        lines.append(f"TABLE: {tbl['name']}")
+        if "original_name" in tbl and tbl["original_name"]:
+            lines.append(f"TABLE: {tbl['name']} (Source: {tbl['original_name']})")
+        else:
+            lines.append(f"TABLE: {tbl['name']}")
         for col in tbl.get("columns", [])[:60]:
             lines.append(
                 f" - {col['name']} ({col['type']}, nullable={col.get('nullable','?')})"
