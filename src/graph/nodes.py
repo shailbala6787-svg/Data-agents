@@ -62,11 +62,11 @@ def _boot(state: AgentState, mgr: ConnectionManager) -> AgentState:
         except Exception as exc:
             _log.warning("schema_load_failed: %s", exc)
 
-    csv_tables = out.get("csv_tables", [])
-    if csv_tables:
+    csv_files = out.get("csv_files", [])
+    if csv_files:
         try:
             with mgr._csv_engine.connect() as conn:
-                for tbl in csv_tables:
+                for tbl in csv_files:
                     tname = tbl.get("table_name")
                     if not tname: continue
                     rows = conn.execute(sa.text(f"PRAGMA table_info('{tname}')")).fetchall()
@@ -231,14 +231,13 @@ def ingest_node(state: AgentState) -> AgentState:
     out.update(state)
     print(f"[TRACE ingest_node] out after update: {out}")
     print(f"[TRACE ingest_node] out after update keys: {list(out.keys())}")
-    csv_tables = [
+    csv_files = [
         t for t in out.get("csv_files", []) if isinstance(t, dict)
     ]
-    if csv_tables:
+    if csv_files:
         _log.info(
-            "ingest(%s): %d CSV table(s)", out.get("run_id"), len(csv_tables)
+            "ingest(%s): %d CSV table(s)", out.get("run_id"), len(csv_files)
         )
-        out["csv_tables"] = csv_tables  # type: ignore[assignment]
     result = _boot(out, mgr)
     if not result.get("error"):
         result["next"] = "plan_node"
@@ -332,15 +331,15 @@ def execute_node(state: AgentState) -> AgentState:
     role = state.get("role", "officer")
     user_id = state.get("user_id", "")
     conn_id = state.get("db_conn_id")
-    csv_tables = out.get("csv_tables") or []
+    csv_files = out.get("csv_files") or []
     question = state.get("question") or ""
 
     # --- DEBUG ---
     _log.info(
-        "[EXECUTE] question=%r sql=%r csv_tables=%d conn_id=%s",
+        "[EXECUTE] question=%r sql=%r csv_files=%d conn_id=%s",
         question,
         sql[:500],
-        len(csv_tables),
+        len(csv_files),
         conn_id,
     )
     # --- END DEBUG ---
@@ -414,7 +413,7 @@ def execute_node(state: AgentState) -> AgentState:
             return result
 
     # ---- CSV path ----
-    if csv_tables and not (conn_id is not None and user_id):
+    if csv_files and not (conn_id is not None and user_id):
         try:
             capped = f"SELECT * FROM ({sql}) AS _upc LIMIT 50000"
             with mgr._csv_engine.connect() as conn:
