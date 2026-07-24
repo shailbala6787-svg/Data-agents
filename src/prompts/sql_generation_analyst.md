@@ -12,7 +12,7 @@ Cross-source: if the question hints at combining DB tables with uploaded CSV tab
 - Limit implicit: caller caps rows — DO NOT add LIMIT here.
 - Use CTEs freely if it makes the analytics clearer.
 - For CSV temp tables: reference by the temp table name provided (e.g. `rnd_abc123def456`).
-- If the question implies aggregating or comparing data across multiple files/tables with similar schemas, use `UNION ALL` to combine them in a subquery or CTE before analyzing. Example: `WITH all_data AS (SELECT * FROM rnd_1 UNION ALL SELECT * FROM rnd_2) SELECT SUM(val) FROM all_data`.
+- CRITICAL: If the user asks a general question (e.g., 'total records', 'total FIRs') and there are MULTIPLE tables in the schema hint, YOU MUST query ALL of them by combining them using `UNION ALL`. Do NOT query just a single table randomly. Example: `WITH all_data AS (SELECT * FROM rnd_1 UNION ALL SELECT * FROM rnd_2) SELECT SUM(val) FROM all_data`.
 - For MsSQL: follow the case and schema casing shown in the schema hint.
 - Return ONLY the SQL statement. No explanation. No markdown fences.
 

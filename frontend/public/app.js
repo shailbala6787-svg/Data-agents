@@ -271,8 +271,9 @@ function renderCsvTables(tables) {
   tables.forEach((t) => {
     const li = document.createElement('li')
     li.className = 'table-chip'
+    const displayName = t.filename || t.table_name
     li.innerHTML = `
-      <span class="table-name" title="${escapeHtml(t.table_name)}">${escapeHtml(t.table_name)}</span>
+      <span class="table-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
       <span class="table-meta">${t.rows ?? '?'} rows</span>
       <button class="delete-btn" data-table="${escapeHtml(t.table_name)}" title="Delete table">🗑</button>
     `
