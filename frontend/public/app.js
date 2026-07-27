@@ -131,6 +131,30 @@ function appendMessage({ role, text, meta, chart, table_data }) {
     }, 10)
   }
 
+  // Export Actions
+  if ((table_data && table_data.columns && table_data.rows) || (chart && chart.type)) {
+    const actions = document.createElement('div')
+    actions.className = 'export-actions'
+    
+    if (table_data && window.XLSX) {
+      const excelBtn = document.createElement('button')
+      excelBtn.className = 'export-btn'
+      excelBtn.innerHTML = '<span>📊</span> Excel'
+      excelBtn.onclick = () => exportToExcel(table_data)
+      actions.appendChild(excelBtn)
+    }
+    
+    if (window.html2pdf) {
+      const pdfBtn = document.createElement('button')
+      pdfBtn.className = 'export-btn'
+      pdfBtn.innerHTML = '<span>📄</span> PDF'
+      pdfBtn.onclick = () => exportToPdf(bubble)
+      actions.appendChild(pdfBtn)
+    }
+    
+    bubble.appendChild(actions)
+  }
+
   if (meta) {
     const m = document.createElement('div')
     m.className = 'meta'
@@ -460,6 +484,57 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+}
+
+/* ---------- Exports ---------- */
+
+function exportToExcel(table_data) {
+  if (!window.XLSX || !table_data || !table_data.columns || !table_data.rows) return;
+  try {
+    const ws = XLSX.utils.json_to_sheet(table_data.rows, { header: table_data.columns });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Data");
+    XLSX.writeFile(wb, "Data_Export.xlsx");
+  } catch (e) {
+    console.error("Excel export failed", e);
+  }
+}
+
+function exportToPdf(element) {
+  if (!window.html2pdf || !element) return;
+  
+  const clone = element.cloneNode(true);
+  const actions = clone.querySelector('.export-actions');
+  if (actions) actions.remove();
+
+  const opt = {
+    margin:       0.5,
+    filename:     'Data_Export.pdf',
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true },
+    jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+  };
+  
+  const wrapper = document.createElement('div');
+  wrapper.style.padding = '20px';
+  wrapper.style.backgroundColor = '#ffffff';
+  wrapper.style.color = '#000000';
+  // Copy over the canvas image as a real image to ensure it gets captured
+  const originalCanvas = element.querySelector('canvas');
+  if (originalCanvas) {
+    const img = document.createElement('img');
+    img.src = originalCanvas.toDataURL();
+    img.style.width = '100%';
+    img.style.height = 'auto';
+    const cloneCanvasWrapper = clone.querySelector('.chart-wrapper');
+    if (cloneCanvasWrapper) {
+      cloneCanvasWrapper.innerHTML = '';
+      cloneCanvasWrapper.appendChild(img);
+    }
+  }
+  wrapper.appendChild(clone);
+  
+  html2pdf().set(opt).from(wrapper).save();
 }
 
 /* ---------- Wiring ---------- */
