@@ -291,12 +291,21 @@ def plan_node(state: AgentState) -> AgentState:
             print(
                 f"[TRACE plan_node] CALLING _llm_sql  question={question!r}  schema_hint={schema_hint[:120]!r}"
             )
-            out["sql"] = _llm_sql(question, schema_hint)
+            raw_sql = _llm_sql(question, schema_hint)
         else:
             system = load_prompt("sql_generation_analyst")
             user = f"QUESTION:\n{question}\n\nSCHEMA_HINT:\n{schema_hint}\n\nGenerate SQL:\n"
             print(f"[TRACE plan_node] CALLING LLMClient  role=analyst")
-            out["sql"] = LLMClient().complete(system, user, max_tokens=2048)
+            raw_sql = LLMClient().complete(system, user, max_tokens=2048)
+            
+        import re
+        match = re.search(r'```(?:sql)?\n?(.*?)\n?```', raw_sql, re.IGNORECASE | re.DOTALL)
+        if match:
+            out["sql"] = match.group(1).strip()
+        else:
+            # Fallback if no markdown blocks are found
+            out["sql"] = raw_sql.strip()
+            
         print(f"[TRACE plan_node] OUT sql={out.get('sql')!r}")
     except LLMError as exc:
         out["error"] = str(exc)
