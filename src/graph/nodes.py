@@ -146,7 +146,7 @@ def _render_chart(
             c for c in rows.columns if pd.api.types.is_numeric_dtype(rows[c])
         ]
         cat_cols = [c for c in rows.columns if c not in numeric_cols]
-        text = f"{question} {' '.join(str(c) for c in columns)}".lower()
+        text = f"{question} {' '.join(str(c) for c in rows.columns)}".lower()
 
         chart_type = "bar"
         x_col = cat_cols[0] if cat_cols else rows.columns[0]
@@ -301,10 +301,10 @@ def plan_node(state: AgentState) -> AgentState:
         import re
         match = re.search(r'```(?:sql)?\n?(.*?)\n?```', raw_sql, re.IGNORECASE | re.DOTALL)
         if match:
-            out["sql"] = match.group(1).strip()
+            out["sql"] = match.group(1).strip().rstrip(';')
         else:
             # Fallback if no markdown blocks are found
-            out["sql"] = raw_sql.strip()
+            out["sql"] = raw_sql.strip().rstrip(';')
             
         print(f"[TRACE plan_node] OUT sql={out.get('sql')!r}")
     except LLMError as exc:
