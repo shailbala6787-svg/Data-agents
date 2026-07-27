@@ -33,5 +33,8 @@ class AgentState(TypedDict, total=False):
 
     # ---- control ----
     error: str | None
+    last_sql_error: str | None
     status: str | None  # pending | planning | executing | responding | completed | failed
     next: str | None  # next node hint
+    sql_retries: int | None
+

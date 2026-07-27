@@ -35,16 +35,16 @@ def build_agent():
             targets[stages[i + 1]] = stages[i + 1]
         targets["finalize"] = "finalize"
         targets["handle_error"] = "handle_error"
+        targets["plan_node"] = "plan_node"
         
         def make_cond(current: str):
             def _cond(state: AgentState) -> str:
-                if state.get("error"):
-                    return "handle_error"
                 if state.get("next"):
-                    # Only use explicit next if it's in our allowed targets
                     nxt = state["next"]
                     if nxt in targets:
                         return nxt
+                if state.get("error"):
+                    return "handle_error"
                 idx = stages.index(current)
                 if idx + 1 < len(stages):
                     return stages[idx + 1]

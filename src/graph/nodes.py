@@ -287,14 +287,19 @@ def plan_node(state: AgentState) -> AgentState:
         print(f"[TRACE plan_node]   {k}={out.get(k)!r}")
     _log.info("[PLAN] question=%r role=%r schema_hint=%r", question[:200], role, schema_hint[:200])
     try:
+        modified_question = question
+        retries = state.get("sql_retries") or 0
+        if retries > 0 and state.get("last_sql_error"):
+            modified_question += f"\n\n[PREVIOUS SQL FAILED WITH ERROR: {state['last_sql_error']}\nCRITICAL: You MUST fix the syntax error or invalid column/table reference. Look closely at the error message.]"
+
         if role == "officer":
             print(
-                f"[TRACE plan_node] CALLING _llm_sql  question={question!r}  schema_hint={schema_hint[:120]!r}"
+                f"[TRACE plan_node] CALLING _llm_sql  question={modified_question!r}  schema_hint={schema_hint[:120]!r}"
             )
-            raw_sql = _llm_sql(question, schema_hint)
+            raw_sql = _llm_sql(modified_question, schema_hint)
         else:
             system = load_prompt("sql_generation_analyst")
-            user = f"QUESTION:\n{question}\n\nSCHEMA_HINT:\n{schema_hint}\n\nGenerate SQL:\n"
+            user = f"QUESTION:\n{modified_question}\n\nSCHEMA_HINT:\n{schema_hint}\n\nGenerate SQL:\n"
             print(f"[TRACE plan_node] CALLING LLMClient  role=analyst")
             raw_sql = LLMClient().complete(system, user, max_tokens=2048)
             
@@ -407,25 +412,20 @@ def execute_node(state: AgentState) -> AgentState:
             )
             # --- END DEBUG ---
         except Exception as exc:
-            out["error"] = f"MsSQL query failed: {exc}"
             _log.error("[EXECUTE] mssql failed: %s", exc)
             print(f"[TRACE execute_node] MsSQL exception: {exc}")
-            result = out
-            print(f"[TRACE execute_node] OUT keys={sorted(result.keys())}")
-            for k in [
-                "question",
-                "sql",
-                "df_json",
-                "chart",
-                "table_data",
-                "output",
-                "answer",
-                "error",
-                "status",
-                "source_summary",
-            ]:
-                print(f"[TRACE execute_node]   {k}={result.get(k)!r}")
-            return result
+            retries = out.get("sql_retries") or 0
+            if retries < 2:
+                out["sql_retries"] = retries + 1
+                out["last_sql_error"] = str(exc)
+                out["next"] = "plan_node"
+                if "error" in out:
+                    del out["error"]
+                return out
+            else:
+                out["error"] = f"MsSQL query failed: {exc}"
+                out["next"] = None
+                return out
 
     # ---- CSV path ----
     if csv_files and not (conn_id is not None and user_id):
@@ -440,9 +440,18 @@ def execute_node(state: AgentState) -> AgentState:
             )
         except Exception as exc:
             _log.debug("csv_read_failed: %s", exc)
-            out["error"] = f"CSV query failed: {exc}"
-            result = out
-            return result
+            retries = out.get("sql_retries") or 0
+            if retries < 2:
+                out["sql_retries"] = retries + 1
+                out["last_sql_error"] = str(exc)
+                out["next"] = "plan_node"
+                if "error" in out:
+                    del out["error"]
+                return out
+            else:
+                out["error"] = f"CSV query failed: {exc}"
+                out["next"] = None
+                return out
 
     if not dfs:
         out["df_json"] = "[]"
