@@ -40,7 +40,18 @@ class ConnectionManager:
         if csv_db_url:
             self._csv_engine = sa.create_engine(csv_db_url, pool_pre_ping=True)
         else:
-            db_path = os.path.join(os.path.dirname(__file__), "..", "..", ".csv_temp.db")
+            old_db_path = os.path.join(os.path.dirname(__file__), "..", "..", ".csv_temp.db")
+            db_dir = os.path.join(os.path.dirname(__file__), "..", "..", ".data")
+            os.makedirs(db_dir, exist_ok=True)
+            db_path = os.path.join(db_dir, ".csv_temp.db")
+            
+            if os.path.exists(old_db_path) and not os.path.exists(db_path):
+                import shutil
+                try:
+                    shutil.move(old_db_path, db_path)
+                except Exception:
+                    pass
+
             self._csv_engine = sa.create_engine(
                 f"sqlite:///{db_path}", connect_args={"check_same_thread": False}, echo=False
             )
@@ -227,13 +238,14 @@ class ConnectionManager:
         n_rows = 0
         is_first = True
 
-        for df in chunks:
-            if is_first:
-                cols = infer_schema(df)
-            
-            n_rows += len(df)
-            df.to_sql(table_name, self._csv_engine, if_exists="replace" if is_first else "append", index=False)
-            is_first = False
+        with self._csv_engine.begin() as conn:
+            for df in chunks:
+                if is_first:
+                    cols = infer_schema(df)
+                
+                n_rows += len(df)
+                df.to_sql(table_name, conn, if_exists="replace" if is_first else "append", index=False)
+                is_first = False
 
         if n_rows == 0:
             raise ValueError("CSV contains no parseable rows.")
