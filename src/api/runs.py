@@ -25,6 +25,11 @@ from src.graph.nodes import _get_mgr
 router = APIRouter()
 
 
+@router.get("/health")
+def health_check():
+    return {"status": "ok", "version": "1.0.1"}
+
+
 def _to_result(run: RunRow) -> RunResult:
     return RunResult(
         run_id=str(run.id),
