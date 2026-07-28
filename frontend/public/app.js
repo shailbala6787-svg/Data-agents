@@ -391,13 +391,63 @@ function renderCsvTables(tables) {
     li.className = 'table-chip'
     const displayName = t.filename || t.table_name
     li.innerHTML = `
-      <span class="table-name" title="${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
+      <span class="table-name" style="cursor: pointer; text-decoration: underline; color: var(--primary);" title="Click to preview ${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
       <span class="table-meta">${t.rows ?? '?'} rows</span>
       <button class="delete-btn" data-table="${escapeHtml(t.table_name)}" title="Delete table">🗑</button>
     `
+    li.querySelector('.table-name').addEventListener('click', () => previewCsvTable(t.table_name, displayName))
     li.querySelector('.delete-btn').addEventListener('click', () => deleteCsvTable(t.table_name))
     list.appendChild(li)
   })
+}
+
+async function previewCsvTable(tableName, displayName) {
+  const card = $('#previewCard')
+  const content = $('#previewContent')
+  const title = $('#previewTitle')
+  
+  card.style.display = 'block'
+  title.textContent = `📊 Preview: ${displayName}`
+  content.innerHTML = '<div style="padding: 20px; text-align: center;">Loading preview...</div>'
+  
+  try {
+    const res = await fetch(`${API_BASE}/runs/csv-tables/${encodeURIComponent(tableName)}/preview`)
+    if (!res.ok) throw new Error('Failed to load preview')
+    const data = await res.json()
+    const table_data = data?.data || data
+    
+    if (table_data && table_data.columns && table_data.rows) {
+      let html = '<table class="data-table" style="width: 100%; border-collapse: collapse;">'
+      html += '<thead><tr>'
+      table_data.columns.forEach(col => {
+        html += `<th style="border: 1px solid #ddd; padding: 8px; background: #f9fafb; text-align: left;">${escapeHtml(col)}</th>`
+      })
+      html += '</tr></thead><tbody>'
+      
+      table_data.rows.forEach(row => {
+        html += '<tr>'
+        table_data.columns.forEach(col => {
+          html += `<td style="border: 1px solid #ddd; padding: 8px; font-size: 0.9em;">${escapeHtml(row[col])}</td>`
+        })
+        html += '</tr>'
+      })
+      html += '</tbody></table>'
+      
+      if (table_data.rows.length === 50) {
+          html += '<p style="text-align: center; color: #666; margin-top: 10px; font-size: 0.9em;">Showing first 50 rows only.</p>'
+      }
+      
+      content.innerHTML = html
+    } else {
+      content.innerHTML = '<div style="padding: 20px;">No data available.</div>'
+    }
+  } catch (e) {
+    content.innerHTML = `<div style="padding: 20px; color: red;">Error loading preview: ${e.message}</div>`
+  }
+}
+
+function closePreview() {
+  $('#previewCard').style.display = 'none'
 }
 
 /* ---------- Database Profiles ---------- */

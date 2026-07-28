@@ -202,6 +202,27 @@ async def csv_tables():
     return ok({"tables": out})
 
 
+@router.get("/runs/csv-tables/{table_name:path}/preview")
+def preview_csv_table(table_name: str):
+    mgr = ConnectionManager(
+        ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
+    )
+    reg = mgr._temp_tables
+    if table_name not in reg:
+        raise api_error("table_not_found", f"No temp table: {table_name}", 404)
+    
+    try:
+        import sqlalchemy as sa
+        with mgr._csv_engine.connect() as conn:
+            result = conn.execute(sa.text(f"SELECT * FROM \"{table_name}\" LIMIT 50"))
+            rows = [dict(row._mapping) for row in result]
+            columns = list(result.keys())
+        return ok({"columns": columns, "rows": rows})
+    except Exception as e:
+        raise api_error("preview_failed", str(e), 500)
+
+
+
 @router.post("/runs/upload", response_model=UploadResponse, include_in_schema=False)
 @router.post("/runs", response_model=RunResult)
 def create_run(req: RunRequest, session: Session = Depends(get_session)) -> dict[str, Any]:
