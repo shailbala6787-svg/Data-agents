@@ -349,7 +349,15 @@ async function loadCsvTables() {
   
   const list = $('#csvTables')
   if (list && (!csvTables || csvTables.length === 0)) {
-    list.innerHTML = '<div class="empty-state"><p>Waking up server and loading tables...</p></div>'
+    list.innerHTML = `
+      <div class="empty-state">
+        <svg style="animation: spin 1s linear infinite; width: 32px; height: 32px; color: var(--primary); margin-bottom: 10px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p style="color: var(--primary); font-weight: 500;">Waking up server and loading tables...</p>
+      </div>
+    `
   }
 
   try {
@@ -408,11 +416,16 @@ function renderCsvTables(tables) {
     li.className = 'table-chip'
     const displayName = t.filename || t.table_name
     li.innerHTML = `
-      <span class="table-name" style="cursor: pointer; text-decoration: underline; color: var(--primary);" title="Click to preview ${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
+      <span class="table-name" style="cursor: pointer; font-weight: 500; color: var(--text-color);" title="Click to preview ${escapeHtml(displayName)}">${escapeHtml(displayName)}</span>
       <span class="table-meta">${t.rows ?? '?'} rows</span>
-      <button class="delete-btn" data-table="${escapeHtml(t.table_name)}" title="Delete table">🗑</button>
+      <div style="margin-left: auto; display: flex; gap: 8px;">
+        <button class="preview-btn" data-table="${escapeHtml(t.table_name)}" title="Preview table data" style="background: none; border: 1px solid var(--border-color); border-radius: 4px; cursor: pointer; font-size: 0.9em; padding: 2px 8px;">👀 Preview</button>
+        <button class="delete-btn" data-table="${escapeHtml(t.table_name)}" title="Delete table">🗑</button>
+      </div>
     `
-    li.querySelector('.table-name').addEventListener('click', () => previewCsvTable(t.table_name, displayName))
+    const previewHandler = () => previewCsvTable(t.table_name, displayName);
+    li.querySelector('.table-name').addEventListener('click', previewHandler)
+    li.querySelector('.preview-btn').addEventListener('click', previewHandler)
     li.querySelector('.delete-btn').addEventListener('click', () => deleteCsvTable(t.table_name))
     list.appendChild(li)
   })
