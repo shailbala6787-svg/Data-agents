@@ -188,7 +188,7 @@ def delete_csv_table(table_name: str):
 
 
 @router.get("/runs/csv-tables")
-async def csv_tables():
+def csv_tables():
     mgr = _get_mgr()
     reg = mgr._temp_tables
     out: list[dict[str, Any]] = []

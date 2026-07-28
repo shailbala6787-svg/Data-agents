@@ -18,6 +18,10 @@ async def _lifespan(app: FastAPI):
 
     configure_logging(get_settings().log_level)
     init_db()
+    
+    from src.graph.nodes import _get_mgr
+    _get_mgr()
+    
     yield
 
 
