@@ -244,7 +244,7 @@ class ConnectionManager:
                     cols = infer_schema(df)
                 
                 n_rows += len(df)
-                df.to_sql(table_name, conn, if_exists="replace" if is_first else "append", index=False)
+                df.to_sql(table_name, conn, if_exists="replace" if is_first else "append", index=False, method="multi", chunksize=1000)
                 is_first = False
 
         if n_rows == 0:
