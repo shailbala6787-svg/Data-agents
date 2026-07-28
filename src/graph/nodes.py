@@ -72,12 +72,13 @@ def _boot(state: AgentState, mgr: ConnectionManager) -> AgentState:
                 for tbl in csv_files:
                     tname = tbl.get("table_name")
                     if not tname: continue
-                    rows = conn.execute(sa.text(f"PRAGMA table_info('{tname}')")).fetchall()
-                    if not rows:
+                    inspector = sa.inspect(mgr._csv_engine)
+                    columns = inspector.get_columns(tname)
+                    if not columns:
                         continue
                     cols = []
-                    for r in rows:
-                        cols.append({"name": r[1], "type": r[2], "nullable": not bool(r[3])})
+                    for col in columns:
+                        cols.append({"name": col["name"], "type": str(col["type"]), "nullable": col.get("nullable", True)})
                     original = tbl.get("original_name")
                     schema["tables"].append({"name": tname, "original_name": original, "columns": cols})
         except Exception as exc:
