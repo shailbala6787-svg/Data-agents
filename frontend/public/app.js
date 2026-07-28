@@ -344,15 +344,32 @@ async function uploadCsv(file) {
 /* ---------- CSV Tables ---------- */
 
 async function loadCsvTables() {
+  const btn = document.querySelector('.refresh-btn')
+  if (btn) btn.classList.add('loading')
+  
+  const list = $('#csvTables')
+  if (list && (!csvTables || csvTables.length === 0)) {
+    list.innerHTML = '<div class="empty-state"><p>Waking up server and loading tables...</p></div>'
+  }
+
   try {
     const res = await fetch(`${API_BASE}/runs/csv-tables`)
-    if (!res.ok) return
+    if (!res.ok) {
+      if (list && (!csvTables || csvTables.length === 0)) {
+         list.innerHTML = '<div class="empty-state"><p>Failed to load tables. Please try again.</p></div>'
+      }
+      return
+    }
     const data = await res.json()
     const tables = data?.data?.tables || []
     csvTables = tables
     renderCsvTables(tables)
   } catch (e) {
-    // silent
+    if (list && (!csvTables || csvTables.length === 0)) {
+       list.innerHTML = `<div class="empty-state"><p>Error: ${e.message}</p></div>`
+    }
+  } finally {
+    if (btn) btn.classList.remove('loading')
   }
 }
 
