@@ -20,6 +20,7 @@ from src.db.session import get_session
 from src.domain.run import RunRequest, RunResult
 from src.graph.runner import run_agent
 from src.graph.agent import agentic_ai
+from src.graph.nodes import _get_mgr
 
 router = APIRouter()
 
@@ -38,9 +39,7 @@ def _to_result(run: RunRow) -> RunResult:
 @router.post("/runs/ask")
 async def ask(req: AskRequest, session: Session = Depends(get_session)):
     try:
-        mgr = ConnectionManager(
-            ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
-        )
+        mgr = _get_mgr()
         reg = mgr._temp_tables
         csv_files = []
         for t, v in reg.items():
@@ -134,9 +133,7 @@ async def upload_csv(request: Request, session: Session = Depends(get_session)):
             "total_uploaded": 0,
         })
 
-    mgr = ConnectionManager(
-        ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
-    )
+    mgr = _get_mgr()
 
     uploaded: list[dict[str, Any]] = []
     errors: list[dict[str, str]] = []
@@ -177,9 +174,7 @@ async def upload_csv(request: Request, session: Session = Depends(get_session)):
 
 @router.delete("/runs/csv-tables/{table_name:path}")
 def delete_csv_table(table_name: str):
-    mgr = ConnectionManager(
-        ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
-    )
+    mgr = _get_mgr()
     reg = mgr._temp_tables
     if table_name not in reg:
         raise api_error("table_not_found", f"No temp table: {table_name}", 404)
@@ -189,9 +184,7 @@ def delete_csv_table(table_name: str):
 
 @router.get("/runs/csv-tables")
 async def csv_tables():
-    mgr = ConnectionManager(
-        ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
-    )
+    mgr = _get_mgr()
     reg = mgr._temp_tables
     out: list[dict[str, Any]] = []
     for table_name, v in reg.items():
@@ -204,9 +197,7 @@ async def csv_tables():
 
 @router.get("/runs/csv-tables/{table_name:path}/preview")
 def preview_csv_table(table_name: str):
-    mgr = ConnectionManager(
-        ferkey=get_settings().fernet_key.encode() if get_settings().fernet_key else None,
-    )
+    mgr = _get_mgr()
     reg = mgr._temp_tables
     if table_name not in reg:
         raise api_error("table_not_found", f"No temp table: {table_name}", 404)
