@@ -39,12 +39,12 @@ def build_agent():
         
         def make_cond(current: str):
             def _cond(state: AgentState) -> str:
+                if state.get("error"):
+                    return "handle_error"
                 if state.get("next"):
                     nxt = state["next"]
                     if nxt in targets:
                         return nxt
-                if state.get("error"):
-                    return "handle_error"
                 idx = stages.index(current)
                 if idx + 1 < len(stages):
                     return stages[idx + 1]

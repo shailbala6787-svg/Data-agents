@@ -23,7 +23,10 @@ def _get_engine() -> Engine:
             db_path = Path(url.removeprefix("sqlite:///"))
             if db_path.parent != Path("."):
                 db_path.parent.mkdir(parents=True, exist_ok=True)
-        _engine = create_engine(url, echo=False)
+        kwargs = {"echo": False, "pool_pre_ping": True}
+        if url.startswith("postgresql"):
+            kwargs["connect_args"] = {"connect_timeout": 10}
+        _engine = create_engine(url, **kwargs)
     return _engine
 
 
