@@ -220,7 +220,7 @@ def preview_csv_table(table_name: str):
 
 
 @router.post("/runs/upload", response_model=UploadResponse, include_in_schema=False)
-@router.post("/runs", response_model=RunResult)
+@router.post("/runs")
 def create_run(req: RunRequest, session: Session = Depends(get_session)) -> dict[str, Any]:
     run_id = run_agent(req.text, req.instruction)
     run = session.get(RunRow, run_id)

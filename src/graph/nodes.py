@@ -246,7 +246,7 @@ def ingest_node(state: AgentState) -> AgentState:
         )
     result = _boot(out, mgr)
     if not result.get("error"):
-        result["next"] = "plan_node"
+        pass
     print(f"[TRACE ingest_node] OUT keys={sorted(result.keys())}")
     for k in [
         "question",
@@ -271,6 +271,7 @@ def plan_node(state: AgentState) -> AgentState:
         "No schema available. Generated SQL is best-effort against known column names only."
     )
     out: AgentState = {**(state or {})}
+    out.pop("next", None)
     print(f"[TRACE plan_node] IN  keys={sorted(out.keys())}")
     for k in [
         "question",

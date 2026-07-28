@@ -23,8 +23,8 @@ def run_agent(input_text: str, instruction: str) -> str:
 
     initial: AgentState = {
         "run_id": run_id,
-        "input_text": input_text,
-        "instruction": instruction,
+        "question": input_text,
+        "role": instruction,
         "error": None,
     }
     with log_span(log, "agent_run", run_id=run_id) as span:
